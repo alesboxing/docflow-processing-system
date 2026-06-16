@@ -23,11 +23,22 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      - name: Check repository state
+        run: |
+          if ls *.sln 1> /dev/null 2>&1; then
+            echo "Solution file found. Running .NET build pipeline."
+          else
+            echo "No solution file found yet. Documentation scaffold only. Skipping .NET build."
+          fi
+
       - name: Restore
+        if: ${{ hashFiles('*.sln') != '' }}
         run: dotnet restore
 
       - name: Build
+        if: ${{ hashFiles('*.sln') != '' }}
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
+        if: ${{ hashFiles('*.sln') != '' }}
         run: dotnet test --configuration Release --no-build --verbosity normal
