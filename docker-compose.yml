@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/DocFlow.Api/Dockerfile
+    container_name: docflow-api
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+    volumes:
+      - docflow-api-storage:/app/storage
+
+volumes:
+  docflow-api-storage:
