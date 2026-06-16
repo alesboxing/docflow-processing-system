@@ -62,15 +62,15 @@ public sealed class DocumentService : IDocumentService
 
     public async Task<Result<DocumentResponse>> GetByIdAsync(Guid documentId, CancellationToken ct = default)
     {
-        if (documentId == Guid.Empty) return Result<DocumentResponse>.Failure(ApplicationErrors.InvalidDocumentId);
+        if (documentId == Guid.Empty) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.InvalidDocumentId);
         var document = await _documentRepository.GetByIdAsync(documentId, ct);
-        return document is null ? Result<DocumentResponse>.Failure(ApplicationErrors.DocumentNotFound) : Result<DocumentResponse>.Success(DocumentMapper.ToResponse(document));
+        return document is null ? Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound) : Result<DocumentResponse>.Success(DocumentMapper.ToResponse(document));
     }
 
     public async Task<Result<PagedResponse<DocumentResponse>>> GetPagedAsync(PagedRequest request, DocumentStatus? status, CancellationToken ct = default)
     {
-        if (request.Page < 1) return Result<PagedResponse<DocumentResponse>>.Failure(ApplicationErrors.InvalidPage);
-        if (request.PageSize is < 1 or > 100) return Result<PagedResponse<DocumentResponse>>.Failure(ApplicationErrors.InvalidPageSize);
+        if (request.Page < 1) return Result<PagedResponse<DocumentResponse>>.Failure(DocFlow.Application.ApplicationErrors.InvalidPage);
+        if (request.PageSize is < 1 or > 100) return Result<PagedResponse<DocumentResponse>>.Failure(DocFlow.Application.ApplicationErrors.InvalidPageSize);
 
         var items = await _documentRepository.GetPagedAsync(request.Skip, request.PageSize, status, ct);
         var totalCount = await _documentRepository.CountAsync(status, ct);
