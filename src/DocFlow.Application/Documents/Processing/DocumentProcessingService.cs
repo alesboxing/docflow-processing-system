@@ -26,7 +26,7 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
     public async Task<Result<DocumentResponse>> ProcessAsync(Guid documentId, CancellationToken ct = default)
     {
         var document = await _documents.GetByIdAsync(documentId, ct);
-        if (document is null) return Result<DocumentResponse>.Failure(ApplicationErrors.DocumentNotFound);
+        if (document is null) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
 
         var start = document.StartProcessing(_clock.UtcNow);
         if (start.IsFailure) return Result<DocumentResponse>.Failure(start.Error!);
@@ -43,7 +43,7 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
     public async Task<Result<DocumentResponse>> RetryAsync(Guid documentId, RetryDocumentCommand command, CancellationToken ct = default)
     {
         var document = await _documents.GetByIdAsync(documentId, ct);
-        if (document is null) return Result<DocumentResponse>.Failure(ApplicationErrors.DocumentNotFound);
+        if (document is null) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
         var retry = document.Retry(command.Reason, _clock.UtcNow);
         if (retry.IsFailure) return Result<DocumentResponse>.Failure(retry.Error!);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -54,7 +54,7 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
     public async Task<Result<DocumentResponse>> CancelAsync(Guid documentId, CancelDocumentCommand command, CancellationToken ct = default)
     {
         var document = await _documents.GetByIdAsync(documentId, ct);
-        if (document is null) return Result<DocumentResponse>.Failure(ApplicationErrors.DocumentNotFound);
+        if (document is null) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
         var cancel = document.Cancel(command.Reason, _clock.UtcNow);
         if (cancel.IsFailure) return Result<DocumentResponse>.Failure(cancel.Error!);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -64,7 +64,7 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
     public async Task<Result<IReadOnlyList<DocumentHistoryResponse>>> GetHistoryAsync(Guid documentId, CancellationToken ct = default)
     {
         var document = await _documents.GetByIdAsync(documentId, ct);
-        if (document is null) return Result<IReadOnlyList<DocumentHistoryResponse>>.Failure(ApplicationErrors.DocumentNotFound);
+        if (document is null) return Result<IReadOnlyList<DocumentHistoryResponse>>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
         var history = document.History.OrderBy(x => x.CreatedAtUtc).Select(DocumentMapper.ToHistoryResponse).ToList();
         return Result<IReadOnlyList<DocumentHistoryResponse>>.Success(history);
     }
