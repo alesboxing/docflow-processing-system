@@ -37,9 +37,9 @@ public sealed class DocumentDownloadService : IDocumentDownloadService
 
     public async Task<Result<DocumentDownloadResponse>> DownloadAsync(Guid documentId, CancellationToken ct = default)
     {
-        if (documentId == Guid.Empty) return Result<DocumentDownloadResponse>.Failure(ApplicationErrors.InvalidDocumentId);
+        if (documentId == Guid.Empty) return Result<DocumentDownloadResponse>.Failure(DocFlow.Application.ApplicationErrors.InvalidDocumentId);
         var document = await _documents.GetByIdAsync(documentId, ct);
-        if (document is null) return Result<DocumentDownloadResponse>.Failure(ApplicationErrors.DocumentNotFound);
+        if (document is null) return Result<DocumentDownloadResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
         var stream = await _storage.OpenReadAsync(document.StoredFileName, ct);
         return Result<DocumentDownloadResponse>.Success(new DocumentDownloadResponse(stream, document.OriginalFileName, document.ContentType, document.SizeBytes));
     }
