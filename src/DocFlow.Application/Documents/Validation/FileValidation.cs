@@ -18,15 +18,15 @@ public sealed class FileValidationPolicy
 
     public Result Validate(UploadDocumentCommand command)
     {
-        if (command.Content is null) return Result.Failure(ApplicationErrors.FileMissing);
-        if (string.IsNullOrWhiteSpace(command.OriginalFileName)) return Result.Failure(ApplicationErrors.FileNameRequired);
-        if (string.IsNullOrWhiteSpace(command.ContentType)) return Result.Failure(ApplicationErrors.ContentTypeRequired);
-        if (command.SizeBytes <= 0) return Result.Failure(ApplicationErrors.EmptyFile);
-        if (command.SizeBytes > _options.MaxFileSizeBytes) return Result.Failure(ApplicationErrors.FileTooLarge);
+        if (command.Content is null) return Result.Failure(DocFlow.Application.ApplicationErrors.FileMissing);
+        if (string.IsNullOrWhiteSpace(command.OriginalFileName)) return Result.Failure(DocFlow.Application.ApplicationErrors.FileNameRequired);
+        if (string.IsNullOrWhiteSpace(command.ContentType)) return Result.Failure(DocFlow.Application.ApplicationErrors.ContentTypeRequired);
+        if (command.SizeBytes <= 0) return Result.Failure(DocFlow.Application.ApplicationErrors.EmptyFile);
+        if (command.SizeBytes > _options.MaxFileSizeBytes) return Result.Failure(DocFlow.Application.ApplicationErrors.FileTooLarge);
 
         var extension = Path.GetExtension(command.OriginalFileName);
-        if (string.IsNullOrWhiteSpace(extension) || !_options.AllowedExtensions.Contains(extension)) return Result.Failure(ApplicationErrors.UnsupportedFileExtension);
-        if (!_options.AllowedContentTypes.Contains(command.ContentType) && extension != ".docx") return Result.Failure(ApplicationErrors.UnsupportedContentType);
+        if (string.IsNullOrWhiteSpace(extension) || !_options.AllowedExtensions.Contains(extension)) return Result.Failure(DocFlow.Application.ApplicationErrors.UnsupportedFileExtension);
+        if (!_options.AllowedContentTypes.Contains(command.ContentType) && extension != ".docx") return Result.Failure(DocFlow.Application.ApplicationErrors.UnsupportedContentType);
 
         return Result.Success();
     }
