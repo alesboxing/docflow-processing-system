@@ -24,7 +24,7 @@ public sealed class Document
     public string? ExtractedTextPreview { get; private set; }
     public int? PageCount { get; private set; }
     public string? MetadataJson { get; private set; }
-    public IReadOnlyCollection<DocumentProcessingHistory> History => _history.AsReadOnly();
+    public IReadOnlyCollection<DocumentProcessingHistory> History => _history;
 
     public static Result<Document> Create(string originalFileName, string storedFileName, string contentType, long sizeBytes, string checksum, DateTime uploadedAtUtc, int maxRetryCount = 3)
     {
