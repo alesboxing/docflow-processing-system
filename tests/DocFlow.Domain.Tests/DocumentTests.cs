@@ -1,5 +1,6 @@
 using DocFlow.Domain.Documents;
 using FluentAssertions;
+using Xunit;
 
 namespace DocFlow.Domain.Tests;
 
