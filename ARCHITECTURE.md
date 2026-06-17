@@ -71,10 +71,27 @@ Client
   -> client sees all transitions
 ```
 
+File flow:
+
+```text
+POST /api/documents
+-> IFileStorage.SaveAsync
+-> document metadata persisted
+-> GET /api/documents/{id}/download
+-> IFileStorage.OpenReadAsync
+-> original file returned
+```
+
 Failure and retry flow:
 
 ```text
 Uploaded -> Queued -> Processing -> Failed -> Queued
+```
+
+Cancel flow:
+
+```text
+Uploaded -> Cancelled
 ```
 
 If processing throws an exception, the application service catches it, calls the domain method `MarkFailed`, persists the failure reason and allows retry through the retry endpoint.
@@ -205,12 +222,12 @@ src/DocFlow.Application
 Responsibilities:
 
 - upload use case;
+- download use case;
 - processing use case;
 - failure capture;
 - retry use case;
 - cancel use case;
 - history query;
-- download use case;
 - pagination;
 - DTO mapping;
 - application errors;
@@ -267,6 +284,19 @@ This allows API tests to replace infrastructure services when needed.
 ```
 
 The processor can fail without losing the workflow state. The document becomes `Failed`, and the failure reason is stored.
+
+## Download use case
+
+`DocumentDownloadService` coordinates download:
+
+```text
+1. Validate document id.
+2. Load document metadata.
+3. Open stored file through IFileStorage.
+4. Return stream, original file name, content type and size.
+```
+
+The controller returns the stream as a file response.
 
 ## Infrastructure layer
 
@@ -388,8 +418,8 @@ API integration tests use `WebApplicationFactory<Program>` and override infrastr
 Current CI-proven test coverage:
 
 ```text
-Total tests: 10
-Passed: 10
+Total tests: 12
+Passed: 12
 ```
 
 Covered scenarios:
@@ -404,10 +434,12 @@ Covered scenarios:
 - authenticated `/api/auth/me`;
 - upload valid `.txt` document;
 - get document by id after upload;
+- download uploaded document;
 - process uploaded document;
 - history after processing;
 - failed processing state;
-- retry after failure.
+- retry after failure;
+- cancel uploaded document.
 
 ## CI architecture
 
@@ -484,7 +516,7 @@ The current version intentionally does not include:
 DocFlow Processing System demonstrates:
 
 ```text
-Clean Architecture + DDD-lite aggregate + document lifecycle + failure handling + retry + history + JWT-protected API + EF Core/PostgreSQL + Docker + CI-tested integration tests.
+Clean Architecture + DDD-lite aggregate + document lifecycle + upload/download + failure handling + retry + cancel + history + JWT-protected API + EF Core/PostgreSQL + Docker + CI-tested integration tests.
 ```
 
 The strongest architectural point is that document state is not just stored. It is controlled by explicit domain transitions and explained through history.
