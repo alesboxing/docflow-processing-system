@@ -1,5 +1,6 @@
 using DocFlow.Domain.Documents;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace DocFlow.Infrastructure.Persistence;
 
@@ -39,6 +40,9 @@ public sealed class AppDbContext : DbContext
                 .WithOne()
                 .HasForeignKey(x => x.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Navigation(x => x.History)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         modelBuilder.Entity<DocumentProcessingHistory>(builder =>
