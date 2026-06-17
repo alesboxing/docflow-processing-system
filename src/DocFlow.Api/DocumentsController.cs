@@ -28,13 +28,13 @@ public sealed class DocumentsController : ControllerBase
 
     [HttpPost]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Upload([FromForm] UploadDocumentFormRequest request, CancellationToken ct)
+    public async Task<IActionResult> Upload([FromForm] IFormFile? file, CancellationToken ct)
     {
-        if (request.File is null)
+        if (file is null)
             return BadRequest(new ErrorResponse(ApplicationErrors.FileMissing.Code, ApplicationErrors.FileMissing.Message, ApplicationErrors.FileMissing.Type.ToString()));
 
-        await using var stream = request.File.OpenReadStream();
-        var command = new UploadDocumentCommand(request.File.FileName, request.File.ContentType, request.File.Length, stream);
+        await using var stream = file.OpenReadStream();
+        var command = new UploadDocumentCommand(file.FileName, file.ContentType, file.Length, stream);
         var result = await _documents.UploadAsync(command, ct);
         if (result.IsFailure) return ToHttp(result.Error!);
         return CreatedAtAction(nameof(GetById), new { documentId = result.Value.Id }, result.Value);
