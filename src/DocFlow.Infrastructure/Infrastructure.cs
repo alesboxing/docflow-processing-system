@@ -1,58 +1,29 @@
 using System.Security.Cryptography;
 using DocFlow.Application.Abstractions;
 using DocFlow.Domain.Documents;
+using DocFlow.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DocFlow.Infrastructure;
 
 public static class InfrastructureRegistration
 {
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
+    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<IDocumentRepository, InMemoryDocumentRepository>();
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=docflow;Username=postgres;Password=postgres";
+
+        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped<IDocumentRepository, DocumentRepository>();
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IChecksumService, ChecksumService>();
         services.AddScoped<IDateTimeProvider, DateTimeProvider>();
         services.AddScoped<IDocumentProcessor, FakeDocumentProcessor>();
         services.AddScoped<IBackgroundJobClient, NoOpBackgroundJobClient>();
-        services.AddScoped<IUnitOfWork, NoOpUnitOfWork>();
         return services;
-    }
-}
-
-public sealed class InMemoryDocumentRepository : IDocumentRepository
-{
-    private readonly List<Document> _documents = new();
-    private readonly object _sync = new();
-
-    public Task AddAsync(Document document, CancellationToken ct = default)
-    {
-        lock (_sync) _documents.Add(document);
-        return Task.CompletedTask;
-    }
-
-    public Task<Document?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        lock (_sync) return Task.FromResult(_documents.FirstOrDefault(x => x.Id == id));
-    }
-
-    public Task<IReadOnlyList<Document>> GetPagedAsync(int skip, int take, DocumentStatus? status, CancellationToken ct = default)
-    {
-        lock (_sync)
-        {
-            var query = _documents.AsEnumerable();
-            if (status.HasValue) query = query.Where(x => x.Status == status.Value);
-            return Task.FromResult<IReadOnlyList<Document>>(query.OrderByDescending(x => x.UploadedAtUtc).Skip(skip).Take(take).ToList());
-        }
-    }
-
-    public Task<int> CountAsync(DocumentStatus? status, CancellationToken ct = default)
-    {
-        lock (_sync)
-        {
-            var count = status.HasValue ? _documents.Count(x => x.Status == status.Value) : _documents.Count;
-            return Task.FromResult(count);
-        }
     }
 }
 
@@ -122,9 +93,4 @@ public sealed class FakeDocumentProcessor : IDocumentProcessor
 public sealed class NoOpBackgroundJobClient : IBackgroundJobClient
 {
     public Task EnqueueDocumentProcessingAsync(Guid documentId, CancellationToken ct = default) => Task.CompletedTask;
-}
-
-public sealed class NoOpUnitOfWork : IUnitOfWork
-{
-    public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
 }
