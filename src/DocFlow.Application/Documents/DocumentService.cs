@@ -40,10 +40,9 @@ public sealed class DocumentService : IDocumentService
         var validationResult = _fileValidationPolicy.Validate(command);
         if (validationResult.IsFailure) return Result<DocumentResponse>.Failure(validationResult.Error!);
 
-        var checksum = await _checksumService.CalculateSha256Async(command.Content, ct);
-        if (command.Content.CanSeek) command.Content.Position = 0;
-
         var storedFileInfo = await _fileStorage.SaveAsync(command.Content, command.OriginalFileName, command.ContentType, ct);
+        await using var storedStream = await _fileStorage.OpenReadAsync(storedFileInfo.StoredFileName, ct);
+        var checksum = await _checksumService.CalculateSha256Async(storedStream, ct);
         var now = _dateTimeProvider.UtcNow;
 
         var createResult = Document.Create(command.OriginalFileName, storedFileInfo.StoredFileName, command.ContentType, storedFileInfo.SizeBytes, checksum, now);
