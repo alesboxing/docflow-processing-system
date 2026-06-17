@@ -56,7 +56,7 @@ public sealed class DocumentUploadApiTests
         var bytes = Encoding.UTF8.GetBytes(text);
         var file = new ByteArrayContent(bytes);
         file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-        multipart.Add(file, "File", "example.txt");
+        multipart.Add(file, "file", "example.txt");
         return multipart;
     }
 
