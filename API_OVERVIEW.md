@@ -6,7 +6,7 @@ This API is designed to answer the main workflow question:
 
 > What is happening with this document now, why is it in this status, and what should be done next?
 
-The API is not a simple CRUD wrapper. Most document endpoints represent lifecycle actions: upload, process, fail, retry, cancel, inspect history and download.
+The API is not a simple CRUD wrapper. Most document endpoints represent lifecycle actions: upload, download, process, fail, retry, cancel and inspect history.
 
 ## Base URL
 
@@ -207,18 +207,7 @@ Max file size:
 
 Successful response: `201 Created`
 
-```json
-{
-  "id": "document-id",
-  "originalFileName": "example.txt",
-  "contentType": "text/plain",
-  "status": "Uploaded",
-  "retryCount": 0,
-  "maxRetryCount": 3
-}
-```
-
-The actual response contains the full `DocumentResponse` shape.
+The response contains the full `DocumentResponse` shape.
 
 ### Get paged documents
 
@@ -255,6 +244,25 @@ Successful response: `200 OK`
 Returns `DocumentResponse`.
 
 Not found response: `404 Not Found`
+
+### Download document
+
+```http
+GET /api/documents/{documentId}/download
+```
+
+Successful response: `200 OK`
+
+Returns the original uploaded file as binary content.
+
+The response uses:
+
+```text
+Content-Type: original document content type
+Content-Disposition: attachment; filename=<originalFileName>
+```
+
+The download endpoint is covered by CI. The test verifies that the downloaded file content matches the original uploaded text file.
 
 ### Process document
 
@@ -366,6 +374,8 @@ Successful response: `200 OK`
 
 Returns `DocumentResponse` with `status = "Cancelled"`.
 
+The uploaded-document cancel flow is covered by CI.
+
 ### Get document history
 
 ```http
@@ -398,23 +408,6 @@ Successful response: `200 OK`
 ```
 
 The history endpoint is the main endpoint for explaining why the document is in its current state.
-
-### Download document
-
-```http
-GET /api/documents/{documentId}/download
-```
-
-Successful response: `200 OK`
-
-Returns the original uploaded file as binary content.
-
-The response uses:
-
-```text
-Content-Type: original document content type
-Content-Disposition: attachment; filename=<originalFileName>
-```
 
 ## Health check
 
@@ -471,8 +464,8 @@ The current implementation does not add `traceId` or `correlationId` to the `Err
 The current API test suite proves these scenarios in GitHub Actions:
 
 ```text
-Total tests: 10
-Passed: 10
+Total tests: 12
+Passed: 12
 ```
 
 Covered API scenarios:
@@ -484,10 +477,12 @@ Covered API scenarios:
 - document endpoint without token returns 401;
 - `.txt` upload returns 201;
 - uploaded document can be fetched by id;
+- uploaded document can be downloaded with original content;
 - document can be processed successfully;
 - processing history contains transitions;
 - processing failure marks document as Failed;
-- retry after failure queues the document again.
+- retry after failure queues the document again;
+- uploaded document can be cancelled with history reason.
 
 ## Minimal manual demo sequence
 
@@ -522,7 +517,20 @@ file
 
 Copy `id` from the response.
 
-### 3. Process document
+### 3. Download document
+
+```http
+GET /api/documents/{documentId}/download
+Authorization: Bearer <accessToken>
+```
+
+Expected result:
+
+```text
+The original uploaded file is returned.
+```
+
+### 4. Process document
 
 ```http
 POST /api/documents/{documentId}/process
@@ -535,7 +543,7 @@ Expected result:
 status = Processed
 ```
 
-### 4. Check history
+### 5. Check history
 
 ```http
 GET /api/documents/{documentId}/history
