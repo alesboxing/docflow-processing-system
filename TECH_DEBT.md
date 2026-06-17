@@ -8,8 +8,8 @@ The project is currently strong enough for a backend portfolio demo:
 
 ```text
 Build succeeded
-Total tests: 10
-Passed: 10
+Total tests: 12
+Passed: 12
 ```
 
 The items below are not hidden defects. They are explicit boundaries of the current version.
@@ -184,7 +184,11 @@ text/plain
 
 Files are stored locally behind `IFileStorage`.
 
-This keeps infrastructure simple and replaceable.
+The upload/download path is now covered by API integration tests:
+
+```text
+upload -> store -> download
+```
 
 ### Current limitations
 
@@ -193,7 +197,8 @@ This keeps infrastructure simple and replaceable.
 - no retention policy;
 - no lifecycle policy;
 - no signed URLs;
-- no storage-level encryption configuration.
+- no storage-level encryption configuration;
+- no automated cleanup of files created by tests or demo runs.
 
 ### Future improvement
 
@@ -276,7 +281,7 @@ API integration tests use EF Core InMemory for speed and simplicity.
 
 ### Why this is acceptable now
 
-The tests validate the HTTP pipeline, authentication, controllers, application services, domain transitions and persistence calls quickly in CI.
+The tests validate the HTTP pipeline, authentication, controllers, application services, domain transitions, persistence calls and local file storage behavior quickly in CI.
 
 ### Current limitation
 
@@ -384,22 +389,21 @@ Swagger is enabled in Development.
 - add Swagger Bearer authentication button;
 - add XML comments or endpoint descriptions;
 - document response codes;
-- add examples for upload, process, retry and history.
+- add examples for upload, download, process, retry and history.
 
 ## 14. Missing useful tests
 
-The current 10 tests are enough for the portfolio version, but these tests would improve confidence.
+The current 12 tests are enough for the portfolio version, but these tests would improve confidence.
 
 Recommended next tests:
 
-1. `Cancel_ShouldReturn200_WhenDocumentUploaded`
-2. `Download_ShouldReturnOriginalFile_WhenDocumentExists`
-3. `Upload_ShouldReturn400_WhenExtensionUnsupported`
-4. `GetDocuments_ShouldReturnPagedList`
-5. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
-6. `Process_ShouldReturn404_WhenDocumentNotFound`
-7. `Upload_ShouldReturn400_WhenFileMissing`
-8. `Upload_ShouldReturn400_WhenFileTooLarge`
+1. `Upload_ShouldReturn400_WhenExtensionUnsupported`
+2. `GetDocuments_ShouldReturnPagedList`
+3. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
+4. `Process_ShouldReturn404_WhenDocumentNotFound`
+5. `Upload_ShouldReturn400_WhenFileMissing`
+6. `Upload_ShouldReturn400_WhenFileTooLarge`
+7. `Download_ShouldReturn404_WhenDocumentNotFound`
 
 ## 15. Deployment
 
@@ -429,9 +433,9 @@ Docker Compose is available for local demo usage.
 Best next steps if the project continues:
 
 ```text
-P1: Add cancel endpoint test.
-P1: Add download endpoint test.
 P1: Add unsupported extension test.
+P1: Add paged list test.
+P1: Add retry conflict test.
 P2: Add Swagger JWT config.
 P2: Add PostgreSQL Testcontainers persistence test.
 P2: Add structured processing failure logs.
@@ -447,7 +451,8 @@ The project should be presented as:
 
 ```text
 A focused workflow backend demo with Clean Architecture, DDD-lite aggregate modeling,
-JWT-protected API, EF Core persistence, failure handling, retry, history and CI-tested integration tests.
+JWT-protected API, EF Core persistence, upload/download, failure handling,
+retry, cancel, history and CI-tested integration tests.
 ```
 
 It should not be presented as a production document management platform.
