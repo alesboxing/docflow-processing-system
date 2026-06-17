@@ -28,13 +28,20 @@ public sealed class DocumentsController : ControllerBase
 
     [HttpPost]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Upload([FromForm] IFormFile? file, CancellationToken ct)
+    public async Task<IActionResult> Upload(CancellationToken ct)
     {
+        if (!Request.HasFormContentType)
+            return BadRequest(new ErrorResponse(ApplicationErrors.FileMissing.Code, ApplicationErrors.FileMissing.Message, ApplicationErrors.FileMissing.Type.ToString()));
+
+        var file = Request.Form.Files.FirstOrDefault();
+
         if (file is null)
             return BadRequest(new ErrorResponse(ApplicationErrors.FileMissing.Code, ApplicationErrors.FileMissing.Message, ApplicationErrors.FileMissing.Type.ToString()));
 
+        var contentType = NormalizeContentType(file.FileName, file.ContentType);
+
         await using var stream = file.OpenReadStream();
-        var command = new UploadDocumentCommand(file.FileName, file.ContentType, file.Length, stream);
+        var command = new UploadDocumentCommand(file.FileName, contentType, file.Length, stream);
         var result = await _documents.UploadAsync(command, ct);
         if (result.IsFailure) return ToHttp(result.Error!);
         return CreatedAtAction(nameof(GetById), new { documentId = result.Value.Id }, result.Value);
@@ -94,6 +101,19 @@ public sealed class DocumentsController : ControllerBase
         var result = await _download.DownloadAsync(documentId, ct);
         if (result.IsFailure) return ToHttp(result.Error!);
         return File(result.Value.Content, result.Value.ContentType, result.Value.FileName);
+    }
+
+    private static string NormalizeContentType(string fileName, string? contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType) && contentType != "application/octet-stream")
+            return contentType;
+
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".txt" => "text/plain",
+            ".pdf" => "application/pdf",
+            _ => contentType ?? string.Empty
+        };
     }
 
     private IActionResult ToHttp(DocFlow.Domain.Shared.AppError error)
