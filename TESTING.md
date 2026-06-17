@@ -13,8 +13,8 @@ The tests are focused on document workflow behavior, not only on controller stat
 Current GitHub Actions result:
 
 ```text
-Total tests: 12
-Passed: 12
+Total tests: 13
+Passed: 13
 Build succeeded
 0 warnings
 0 errors
@@ -103,11 +103,12 @@ Why this matters:
 | `Me_ShouldReturn200_WhenAuthenticated` | Authenticated user endpoint works with token |
 | `Documents_ShouldReturn401_WhenNoToken` | Document endpoints require authentication |
 
-### Upload, read and download
+### Upload validation, read and download
 
 | Test | What it proves |
 |---|---|
 | `Upload_ShouldReturn201_WhenTxtFileValid` | Valid `.txt` upload works through multipart form data |
+| `Upload_ShouldReturn400_WhenExtensionUnsupported` | Unsupported file extension is rejected with `File.UnsupportedExtension` |
 | `GetById_ShouldReturn200_AfterUpload` | Uploaded document can be fetched by id |
 | `Download_ShouldReturnOriginalFile_WhenDocumentExists` | Uploaded file can be downloaded and content matches the original file |
 
@@ -149,6 +150,21 @@ HTTP request
 ```
 
 This is why the tests are more valuable than isolated controller tests.
+
+## Upload validation test design
+
+The unsupported extension test verifies:
+
+```text
+login -> upload virus.exe -> 400 BadRequest
+```
+
+It proves:
+
+- the upload endpoint does not accept arbitrary files;
+- validation happens before persistence;
+- the API returns `File.UnsupportedExtension`;
+- invalid files do not enter the document workflow.
 
 ## Failure/retry test design
 
@@ -281,7 +297,7 @@ The current tests do not yet cover:
 - real file-system cleanup assertions;
 - real OCR/PDF parsing;
 - large file upload rejection;
-- unsupported file extension rejection;
+- missing file upload rejection;
 - paging and filtering edge cases;
 - retry conflict when document is not failed;
 - process not found case;
@@ -293,12 +309,11 @@ These are good next improvements, but they are not required to prove the current
 
 Priority order:
 
-1. `Upload_ShouldReturn400_WhenExtensionUnsupported`
-2. `GetDocuments_ShouldReturnPagedList`
-3. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
-4. `Process_ShouldReturn404_WhenDocumentNotFound`
-5. `Upload_ShouldReturn400_WhenFileMissing`
-6. `Upload_ShouldReturn400_WhenFileTooLarge`
-7. `Download_ShouldReturn404_WhenDocumentNotFound`
+1. `GetDocuments_ShouldReturnPagedList`
+2. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
+3. `Process_ShouldReturn404_WhenDocumentNotFound`
+4. `Upload_ShouldReturn400_WhenFileMissing`
+5. `Upload_ShouldReturn400_WhenFileTooLarge`
+6. `Download_ShouldReturn404_WhenDocumentNotFound`
 
 This order improves coverage without adding unnecessary architecture complexity.
