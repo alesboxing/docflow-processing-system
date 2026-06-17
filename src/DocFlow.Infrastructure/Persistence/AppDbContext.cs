@@ -11,6 +11,7 @@ public sealed class AppDbContext : DbContext
     }
 
     public DbSet<Document> Documents => Set<Document>();
+    public DbSet<DocumentProcessingHistory> DocumentProcessingHistory => Set<DocumentProcessingHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,8 +42,9 @@ public sealed class AppDbContext : DbContext
                 .HasForeignKey(x => x.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.Navigation(x => x.History)
-                .UsePropertyAccessMode(PropertyAccessMode.Field);
+            var historyNavigation = builder.Metadata.FindNavigation(nameof(Document.History));
+            historyNavigation?.SetField("_history");
+            historyNavigation?.SetPropertyAccessMode(PropertyAccessMode.Field);
         });
 
         modelBuilder.Entity<DocumentProcessingHistory>(builder =>
