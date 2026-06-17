@@ -48,7 +48,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddApplicationServices();
-builder.Services.AddInfrastructureServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
