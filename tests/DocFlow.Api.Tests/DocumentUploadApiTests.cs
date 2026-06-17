@@ -28,6 +28,22 @@ public sealed class DocumentUploadApiTests
     }
 
     [Fact]
+    public async Task Upload_ShouldReturn400_WhenExtensionUnsupported()
+    {
+        await using var factory = new CustomWebApplicationFactory();
+        var client = factory.CreateClient();
+        await AuthenticateAsync(client);
+
+        using var content = CreateFileContent("malicious executable content", "virus.exe", "application/octet-stream");
+
+        var response = await client.PostAsync("/api/documents", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("File.UnsupportedExtension");
+    }
+
+    [Fact]
     public async Task GetById_ShouldReturn200_AfterUpload()
     {
         await using var factory = new CustomWebApplicationFactory();
@@ -52,11 +68,16 @@ public sealed class DocumentUploadApiTests
 
     private static MultipartFormDataContent CreateTextFileContent(string text)
     {
+        return CreateFileContent(text, "example.txt", "text/plain");
+    }
+
+    private static MultipartFormDataContent CreateFileContent(string text, string fileName, string contentType)
+    {
         var multipart = new MultipartFormDataContent();
         var bytes = Encoding.UTF8.GetBytes(text);
         var file = new ByteArrayContent(bytes);
-        file.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
-        multipart.Add(file, "file", "example.txt");
+        file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        multipart.Add(file, "file", fileName);
         return multipart;
     }
 
