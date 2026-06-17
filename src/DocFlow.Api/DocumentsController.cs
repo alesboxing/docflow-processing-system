@@ -1,15 +1,18 @@
+using DocFlow.Api.Auth;
 using DocFlow.Application;
 using DocFlow.Application.Common;
 using DocFlow.Application.Documents;
 using DocFlow.Application.Documents.Download;
 using DocFlow.Application.Documents.Processing;
 using DocFlow.Application.Documents.Upload;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocFlow.Api;
 
 [ApiController]
 [Route("api/documents")]
+[Authorize(Policy = DocFlowPolicies.DocumentUser)]
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentService _documents;
