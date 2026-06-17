@@ -1,10 +1,10 @@
 # Project Review — DocFlow Processing System
 
-## Final self-review
+## Summary
 
-DocFlow Processing System is a .NET backend portfolio project focused on document workflow modeling rather than simple CRUD.
+DocFlow Processing System is a portfolio .NET backend focused on document workflow modeling, not CRUD.
 
-The main architectural question is:
+Main project question:
 
 ```text
 What is happening with this document now,
@@ -12,19 +12,15 @@ why is it in this status,
 and what should be done next?
 ```
 
-The project now has a working vertical slice: upload, validation, unsupported extension rejection, persistence, processing, failure handling, retry, cancellation, download, history, protected API endpoints, Docker setup and CI-tested integration tests.
-
 ## Current score
 
 ```text
 8.6 / 10
 ```
 
-This is a strong portfolio-level backend project. It is not production-complete, but it is significantly stronger than a typical CRUD demo because the core value is in lifecycle rules, state transitions, validation, failure handling, file handling and integration testing.
+It is strong for a junior+/middle- backend portfolio because it demonstrates workflow state, validation, failure handling, retry, history, protected API endpoints, persistence and integration tests.
 
-## Evidence of completion
-
-Current CI status:
+## CI evidence
 
 ```text
 Build succeeded
@@ -34,293 +30,123 @@ Passed: 13
 0 errors
 ```
 
-Covered by tests:
+## What is implemented
 
-- domain creation rules;
-- invalid state transition protection;
-- successful processing transition;
-- health endpoint;
-- login success and failure;
-- protected endpoint without token;
-- authenticated `/api/auth/me`;
-- document upload;
-- unsupported file extension rejection;
-- get uploaded document by id;
-- process uploaded document;
-- history after processing;
-- processing failure persistence;
-- retry after failure;
-- cancel uploaded document;
-- download uploaded file with original content.
+- Clean Architecture / DDD-lite solution structure.
+- `Document` aggregate root.
+- `DocumentProcessingHistory` child records.
+- Upload with validation.
+- Unsupported extension rejection.
+- Local file storage abstraction.
+- Download original uploaded file.
+- Processing success flow.
+- Processing failure capture.
+- Retry failed document.
+- Cancel uploaded document.
+- History endpoint.
+- JWT demo authentication.
+- Role-protected document endpoints.
+- EF Core/PostgreSQL infrastructure.
+- Docker Compose.
+- GitHub Actions CI.
 
 ## Strong points
 
-### 1. Clear domain model
+### 1. Real workflow, not CRUD
 
-The project has a real aggregate: `Document`.
-
-The aggregate owns:
-
-- current status;
-- timestamps;
-- failure reason;
-- retry count;
-- extracted metadata;
-- processing history.
-
-This is better than exposing raw setters and letting controllers mutate state directly.
-
-### 2. Explicit workflow instead of CRUD
-
-The system models real transitions:
+The core lifecycle is explicit:
 
 ```text
 Uploaded -> Queued -> Processing -> Processed
-Queued -> Processing -> Failed
+Uploaded -> Queued -> Processing -> Failed
 Failed -> Queued
-Uploaded / Queued / Failed -> Cancelled
+Uploaded -> Cancelled
 ```
 
-This gives the project a clear business story.
+### 2. Protected domain state
 
-### 3. Upload validation is tested
+Controllers do not assign status directly. Application services call domain methods, and the aggregate controls valid transitions.
 
-The API rejects unsupported file extensions before they enter the document workflow.
+### 3. Upload validation is proven
 
-Tested rejection:
+The API rejects unsupported extensions before persistence:
 
 ```text
 virus.exe -> 400 BadRequest -> File.UnsupportedExtension
 ```
 
-This shows that the upload endpoint is not just a happy-path file receiver.
-
-### 4. File lifecycle is covered
-
-The API does not only accept upload. It also proves that the uploaded file can be returned through download.
-
-Tested cycle:
+### 4. File cycle is proven
 
 ```text
 upload -> store -> download
 ```
 
-This makes the backend demo more complete.
+The download test verifies that returned content equals the original upload.
 
-### 5. Application services coordinate use cases
+### 5. Failure is modeled as workflow state
 
-The application layer coordinates:
-
-- upload;
-- download;
-- processing;
-- failure capture;
-- retry;
-- cancel;
-- history retrieval.
-
-Controllers remain thin and do not contain business rules.
-
-### 6. Persistence is separated from domain
-
-The domain does not depend on EF Core.
-
-Infrastructure owns:
-
-- `AppDbContext`;
-- EF mappings;
-- repository implementation;
-- unit of work;
-- local file storage;
-- checksum service;
-- fake document processor.
-
-### 7. Authentication and authorization are present
-
-The API uses JWT Bearer authentication and role-based access through `Operator` and `Admin` roles.
-
-This makes the project more realistic than an open anonymous CRUD API.
-
-### 8. Integration tests prove the main workflow
-
-The API is tested through `WebApplicationFactory`, not only through isolated unit tests.
-
-This validates:
-
-- routing;
-- authentication;
-- authorization;
-- controllers;
-- application services;
-- EF Core persistence;
-- file validation;
-- file storage behavior;
-- document processing flow.
-
-### 9. CI is active
-
-GitHub Actions runs restore, build and test on push and pull request.
-
-The project currently has a green CI state with all tests passing.
+Processor exceptions become document status `Failed`, not untracked server crashes. Retry then moves the document back to `Queued`.
 
 ## Current limitations
 
-These are acceptable limitations for a portfolio demo, but they should be stated clearly.
+These are acceptable for the portfolio version:
 
-### 1. Fake document processor
-
-The processor is intentionally fake. It demonstrates the processing contract and workflow, but it does not perform real OCR, PDF parsing or DOCX extraction.
-
-### 2. Manual processing trigger
-
-Processing is started through an API endpoint. There is no real background queue yet.
-
-No RabbitMQ, Kafka, Hangfire, Quartz or hosted worker is implemented.
-
-### 3. Demo authentication
-
-Authentication is suitable for a demo, not production.
-
-The project does not use:
-
-- refresh tokens;
-- external identity provider;
-- password hashing;
-- user database;
-- account lifecycle management.
-
-### 4. Local file storage only
-
-Files are stored locally through an abstraction.
-
-There is no S3, MinIO, Azure Blob Storage or antivirus scanning.
-
-### 5. Basic observability
-
-There is no full logging/metrics/tracing stack.
-
-No OpenTelemetry, Prometheus, Grafana or structured production monitoring is configured.
-
-### 6. No frontend
-
-The project is backend-only.
-
-That is acceptable because the target is backend architecture and workflow modeling.
-
-## Risk assessment
-
-### Low risk
-
-- Domain rules are isolated.
-- Controllers are thin.
-- Main API scenarios are covered by integration tests.
-- CI protects against regressions.
-- Current README describes the implemented project accurately.
-
-### Medium risk
-
-- File storage is local and basic.
-- Demo auth should not be presented as production auth.
-- Fake processor should be clearly explained in interviews.
-- Manual processing endpoint should be described as a deliberate simplification.
-
-### High risk if presented incorrectly
-
-The project should not be presented as a production document platform.
-
-It should be presented as:
-
-```text
-A focused backend workflow demo that shows Clean Architecture,
-DDD-lite aggregate modeling, document lifecycle rules,
-file validation, file upload/download, failure handling,
-retry logic, persistence and integration testing.
-```
+- fake document processor;
+- manual processing endpoint instead of background queue;
+- demo JWT users instead of production identity;
+- local file storage instead of object storage;
+- no antivirus scanning;
+- no real OCR/PDF/DOCX parsing;
+- no full observability stack;
+- no frontend.
 
 ## Interview positioning
 
-Use this explanation:
+Use this version:
 
 ```text
-DocFlow Processing System is a .NET 9 Clean Architecture backend for a document processing workflow.
-It is not just CRUD: the main goal is to show how a document moves through explicit states,
-how invalid files are rejected, how failures are captured, how retry works,
-how cancellation is tracked, and how every important transition is visible through history.
+I built a .NET 9 backend workflow system where Document is the main aggregate.
+The API supports upload, validation, unsupported extension rejection, download,
+processing, failure capture, retry, cancellation, history, JWT-protected endpoints,
+EF Core persistence and CI-tested integration tests.
 ```
-
-A concise version:
-
-```text
-I built a backend workflow system where the main aggregate is Document.
-The system supports upload, validation, unsupported extension rejection, download,
-processing, failure handling, retry, cancellation, history,
-JWT-protected endpoints, PostgreSQL persistence and integration tests.
-```
-
-## What this project proves
-
-The project proves that the developer understands:
-
-- aggregate ownership;
-- state transition protection;
-- stored state vs workflow history;
-- Clean Architecture dependency direction;
-- thin controllers;
-- application service orchestration;
-- infrastructure separation;
-- file upload validation;
-- file upload/storage/download workflow;
-- API integration testing;
-- CI-based verification;
-- honest portfolio limitations.
 
 ## Final checklist
 
 ```text
-[x] Source code exists under src/
-[x] Tests exist under tests/
 [x] Domain tests pass
 [x] API integration tests pass
-[x] GitHub Actions CI passes
+[x] CI passes
 [x] Upload works
 [x] Unsupported extension is rejected
-[x] Download returns original file
+[x] Download works
 [x] Process works
-[x] Failure is captured in document status
-[x] Retry works after failure
-[x] Cancel uploaded document works
-[x] History returns transitions
-[x] JWT auth is implemented
-[x] Role-based document endpoint protection is implemented
-[x] PostgreSQL infrastructure is configured
-[x] Docker Compose is configured
-[x] README is updated
-[x] TECH_DEBT is honest enough for a demo
-[x] No real secrets are required for local demo
+[x] Failure is captured
+[x] Retry works
+[x] Cancel works
+[x] History works
+[x] JWT auth works
+[x] Docker Compose exists
+[x] PostgreSQL infrastructure exists
 ```
 
 ## Recommended next improvements
 
-These are not required for the current portfolio version, but they would improve the project further:
-
 1. Add paged list integration test.
-2. Add retry conflict integration test.
-3. Add not-found integration tests for process/download.
-4. Add missing file upload test.
-5. Add Swagger JWT authorization configuration.
-6. Add PostgreSQL Testcontainers integration test.
-7. Add structured logging for processing failures.
-8. Replace fake processor with a small real text extractor for `.txt` files.
-9. Add a background worker simulation for queued documents.
+2. Add retry conflict test.
+3. Add not-found tests for process/download.
+4. Add missing file and file-too-large upload tests.
+5. Add Swagger JWT configuration.
+6. Add PostgreSQL Testcontainers test.
+7. Add simple real `.txt` extractor.
+8. Add background worker simulation.
 
 ## Final assessment
 
-DocFlow Processing System is ready to be shown as a portfolio backend project.
+The project is ready to show as a backend portfolio project.
 
-It is strongest when positioned around workflow modeling:
+Its strongest story is:
 
 ```text
-Document lifecycle + upload validation + upload/download + failure handling + retry + cancel + history + protected API + persistence + integration tests.
+Document lifecycle + validation + upload/download + failure handling + retry + cancel + history + protected API + persistence + integration tests.
 ```
-
-That combination is enough to distinguish the project from ordinary CRUD demos.
