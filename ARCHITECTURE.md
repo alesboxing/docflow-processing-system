@@ -2,176 +2,78 @@
 
 ## Goal
 
-DocFlow Processing System is a backend workflow system for document processing.
+DocFlow is a backend workflow system for document processing.
 
-The central architectural question is:
+It answers:
 
 > What is happening with this document now, why is it in this status, and what should be done next?
 
-The project is intentionally built around document lifecycle rules rather than simple CRUD.
-
 ## Architecture style
 
-The solution follows a Clean Architecture / DDD-lite structure:
-
 ```text
-DocFlow.Domain
-DocFlow.Application
-DocFlow.Infrastructure
-DocFlow.Api
-```
-
-The core idea is simple:
-
-```text
-Business rules live in Domain.
-Use cases live in Application.
-Technical details live in Infrastructure.
-HTTP concerns live in API.
-```
-
-## Dependency rule
-
-Allowed dependencies:
-
-```text
-DocFlow.Api -> DocFlow.Application
+DocFlow.Api -> DocFlow.Application -> DocFlow.Domain
 DocFlow.Api -> DocFlow.Infrastructure
-DocFlow.Api -> DocFlow.Domain
-DocFlow.Infrastructure -> DocFlow.Application
-DocFlow.Infrastructure -> DocFlow.Domain
-DocFlow.Application -> DocFlow.Domain
+DocFlow.Infrastructure -> DocFlow.Application / DocFlow.Domain
 DocFlow.Domain -> no project dependency
 ```
 
-Forbidden dependencies:
+The domain layer does not depend on HTTP, EF Core, PostgreSQL, file system, JWT, Swagger or Docker.
 
-```text
-Domain -> Application / Infrastructure / API
-Application -> Infrastructure / API
-Infrastructure -> API
-```
+## Layers
 
-This keeps the domain model independent from HTTP, EF Core, PostgreSQL, storage, JWT and Swagger.
+### Domain
 
-## Runtime flow
+Owns business rules:
 
-Typical successful processing flow:
-
-```text
-Client
-  -> POST /api/auth/login
-  -> receives JWT token
-  -> POST /api/documents
-  -> document is uploaded and stored
-  -> Document aggregate is created with Uploaded status
-  -> POST /api/documents/{id}/process
-  -> Document moves Queued -> Processing -> Processed
-  -> GET /api/documents/{id}/history
-  -> client sees all transitions
-```
-
-File flow:
-
-```text
-POST /api/documents
--> IFileStorage.SaveAsync
--> document metadata persisted
--> GET /api/documents/{id}/download
--> IFileStorage.OpenReadAsync
--> original file returned
-```
-
-Failure and retry flow:
-
-```text
-Uploaded -> Queued -> Processing -> Failed -> Queued
-```
-
-Cancel flow:
-
-```text
-Uploaded -> Cancelled
-```
-
-If processing throws an exception, the application service catches it, calls the domain method `MarkFailed`, persists the failure reason and allows retry through the retry endpoint.
-
-## Domain layer
-
-Project:
-
-```text
-src/DocFlow.Domain
-```
-
-Responsibilities:
-
-- document aggregate;
-- document status lifecycle;
-- allowed and forbidden state transitions;
-- retry rules;
+- `Document` aggregate root;
+- document lifecycle;
+- status transition rules;
+- failure and retry rules;
 - cancel rules;
-- processing result state;
-- processing history creation;
-- domain errors;
-- Result pattern.
+- history child records;
+- domain errors and result pattern.
 
-Domain must not know about:
+### Application
 
-- HTTP;
+Coordinates use cases:
+
+- upload;
+- upload validation;
+- download;
+- processing;
+- failure capture;
+- retry;
+- cancel;
+- history query;
+- pagination;
+- DTO mapping.
+
+### Infrastructure
+
+Implements technical details:
+
+- EF Core `AppDbContext`;
+- PostgreSQL configuration;
+- document repository;
+- unit of work;
+- local file storage;
+- checksum service;
+- fake document processor;
+- date/time provider.
+
+### API
+
+Owns HTTP concerns:
+
 - controllers;
-- EF Core;
-- PostgreSQL;
-- file system;
-- JWT;
+- request binding;
+- response mapping;
+- JWT authentication;
+- role authorization;
 - Swagger;
-- Docker;
-- GitHub Actions.
-
-## Document aggregate
-
-`Document` is the aggregate root.
-
-It owns:
-
-- `Id`;
-- original file name;
-- stored file name;
-- content type;
-- file size;
-- checksum;
-- current status;
-- upload timestamp;
-- processed timestamp;
-- failed timestamp;
-- failure reason;
-- retry count;
-- max retry count;
-- extracted title;
-- extracted text preview;
-- page count;
-- metadata JSON;
-- processing history.
-
-The aggregate exposes state through read-only properties and protects mutation through methods.
-
-Allowed mutation methods:
-
-```text
-Create
-MarkQueued
-StartProcessing
-MarkProcessed
-MarkFailed
-Retry
-Cancel
-```
-
-The history collection is internally owned by the aggregate and exposed as `IReadOnlyCollection<DocumentProcessingHistory>`.
+- health checks.
 
 ## Document lifecycle
-
-Current lifecycle:
 
 ```text
 Uploaded -> Queued -> Processing -> Processed
@@ -182,341 +84,120 @@ Queued -> Cancelled
 Failed -> Cancelled
 ```
 
-Invalid transitions are rejected by the domain layer.
+Invalid transitions are rejected by domain methods.
 
 Examples:
 
 ```text
 Uploaded -> Processing      forbidden
-Processed -> Failed         forbidden
 Processed -> Cancelled      forbidden
-Queued -> Processed         forbidden
 Failed -> Processed         forbidden
 ```
 
+## File validation flow
+
+```text
+POST /api/documents
+-> validate file presence/name/type/size/extension
+-> reject unsupported extension before persistence
+-> return 400 BadRequest + File.UnsupportedExtension
+```
+
+CI-proven example:
+
+```text
+virus.exe -> 400 BadRequest -> File.UnsupportedExtension
+```
+
+## File storage and download flow
+
+```text
+POST /api/documents
+-> IFileStorage.SaveAsync
+-> persist document metadata
+-> GET /api/documents/{id}/download
+-> IFileStorage.OpenReadAsync
+-> return original file content
+```
+
+## Processing flow
+
+```text
+POST /api/documents/{id}/process
+-> load Document
+-> MarkQueued / StartProcessing
+-> open stored file
+-> run IDocumentProcessor
+-> MarkProcessed or MarkFailed
+-> save changes
+```
+
+A processor exception becomes workflow state `Failed`. It is not treated as an untracked crash.
+
 ## History model
 
-Every important state transition creates a `DocumentProcessingHistory` record.
+`DocumentProcessingHistory` is a child record owned by the `Document` aggregate.
 
-History records store:
+History stores:
 
-- document id;
 - previous status;
 - target status;
 - action;
 - optional reason;
 - UTC timestamp.
 
-History is not a separate aggregate. It is a child record owned by the `Document` aggregate.
-
-This is why the history collection is mapped through a backing field in EF Core.
-
-## Application layer
-
-Project:
-
-```text
-src/DocFlow.Application
-```
-
-Responsibilities:
-
-- upload use case;
-- download use case;
-- processing use case;
-- failure capture;
-- retry use case;
-- cancel use case;
-- history query;
-- pagination;
-- DTO mapping;
-- application errors;
-- infrastructure abstractions.
-
-Application services coordinate work but do not own domain rules.
-
-Correct pattern:
-
-```text
-Application service loads aggregate.
-Application service calls aggregate method.
-Aggregate validates transition.
-Application service persists through Unit of Work.
-```
-
-Wrong pattern:
-
-```text
-Controller changes status directly.
-Application service assigns Status directly.
-Repository decides business transitions.
-```
-
-## Application abstractions
-
-The application layer defines contracts that infrastructure implements:
-
-```text
-IDocumentRepository
-IFileStorage
-IBackgroundJobClient
-IDocumentProcessor
-IChecksumService
-IDateTimeProvider
-IUnitOfWork
-```
-
-This allows API tests to replace infrastructure services when needed.
-
-## Processing use case
-
-`DocumentProcessingService` coordinates processing:
-
-```text
-1. Load document by id.
-2. Start processing through the aggregate.
-3. Open stored file through IFileStorage.
-4. Run IDocumentProcessor.
-5. On success, call MarkProcessed.
-6. On exception, call MarkFailed.
-7. Save changes through IUnitOfWork.
-8. Return DocumentResponse.
-```
-
-The processor can fail without losing the workflow state. The document becomes `Failed`, and the failure reason is stored.
-
-## Download use case
-
-`DocumentDownloadService` coordinates download:
-
-```text
-1. Validate document id.
-2. Load document metadata.
-3. Open stored file through IFileStorage.
-4. Return stream, original file name, content type and size.
-```
-
-The controller returns the stream as a file response.
-
-## Infrastructure layer
-
-Project:
-
-```text
-src/DocFlow.Infrastructure
-```
-
-Responsibilities:
-
-- EF Core `AppDbContext`;
-- PostgreSQL configuration;
-- database migrations;
-- document repository;
-- EF unit of work;
-- local file storage;
-- checksum calculation;
-- fake document processor;
-- date/time provider;
-- no-op background job client.
-
-## EF Core mapping
-
-Persistence maps:
-
-```text
-documents
-document_processing_history
-```
-
-Important mapping details:
-
-- `DocumentStatus` is stored as string;
-- history has a foreign key to document id;
-- history is cascade-deleted with document;
-- history uses the `_history` backing field;
-- property access mode is configured as field access for history.
-
-The backing-field mapping is important because the domain exposes history as read-only but EF Core still needs to persist child records.
-
-## API layer
-
-Project:
-
-```text
-src/DocFlow.Api
-```
-
-Responsibilities:
-
-- HTTP endpoints;
-- request binding;
-- authentication;
-- authorization;
-- error mapping;
-- Swagger;
-- health checks;
-- middleware pipeline;
-- request size limit.
-
-The API uses JWT Bearer authentication and a document user policy.
-
-Allowed roles:
-
-```text
-Operator
-Admin
-```
-
-Protected document endpoints require:
-
-```text
-RequireAuthenticatedUser
-RequireRole(Operator, Admin)
-```
-
 ## API endpoints
-
-Current document endpoints:
-
-```text
-POST   /api/documents
-GET    /api/documents
-GET    /api/documents/{documentId}
-POST   /api/documents/{documentId}/process
-POST   /api/documents/{documentId}/retry
-POST   /api/documents/{documentId}/cancel
-GET    /api/documents/{documentId}/history
-GET    /api/documents/{documentId}/download
-```
-
-Current auth endpoints:
 
 ```text
 POST   /api/auth/login
 GET    /api/auth/me
-```
-
-Health endpoint:
-
-```text
+POST   /api/documents
+GET    /api/documents
+GET    /api/documents/{documentId}
+GET    /api/documents/{documentId}/download
+POST   /api/documents/{documentId}/process
+POST   /api/documents/{documentId}/retry
+POST   /api/documents/{documentId}/cancel
+GET    /api/documents/{documentId}/history
 GET    /health
 ```
 
 ## Testing architecture
 
-Test projects:
+Current CI-proven test state:
 
 ```text
-tests/DocFlow.Domain.Tests
-tests/DocFlow.Api.Tests
+Total tests: 13
+Passed: 13
 ```
 
-Domain tests verify aggregate behavior directly.
+Covered areas:
 
-API integration tests use `WebApplicationFactory<Program>` and override infrastructure services for test isolation.
+- domain aggregate behavior;
+- JWT authentication;
+- protected endpoint authorization;
+- valid upload;
+- unsupported extension rejection;
+- get by id;
+- download original file;
+- processing success;
+- history;
+- processing failure;
+- retry;
+- cancel.
 
-Current CI-proven test coverage:
+## Design decisions
 
-```text
-Total tests: 12
-Passed: 12
-```
+- DDD-lite, not full enterprise DDD.
+- Manual processing endpoint instead of background queue.
+- Fake processor for portfolio scope.
+- Local file storage behind abstraction.
+- Demo JWT authentication.
 
-Covered scenarios:
+## Non-goals
 
-- domain creation;
-- invalid domain transition;
-- successful processing transition;
-- health endpoint;
-- login success;
-- login failure;
-- protected endpoint without token;
-- authenticated `/api/auth/me`;
-- upload valid `.txt` document;
-- get document by id after upload;
-- download uploaded document;
-- process uploaded document;
-- history after processing;
-- failed processing state;
-- retry after failure;
-- cancel uploaded document.
+Current version intentionally does not include microservices, Kafka, RabbitMQ, Outbox, event sourcing, real OCR, production identity, antivirus scanning, object storage or frontend.
 
-## CI architecture
+## Summary
 
-GitHub Actions runs:
-
-```text
-dotnet restore
-dotnet build --configuration Release --no-restore
-dotnet test --configuration Release --no-build
-```
-
-The current main branch has a passing CI state.
-
-## Docker architecture
-
-Docker Compose is used for local infrastructure.
-
-The project includes:
-
-- API service;
-- PostgreSQL service;
-- connection string wiring through configuration/environment.
-
-The current Docker setup is for local demo usage, not production deployment.
-
-## Key design decisions
-
-### 1. DDD-lite, not full enterprise DDD
-
-The project has aggregate modeling and state protection, but does not introduce unnecessary complexity such as event sourcing, sagas or distributed transactions.
-
-### 2. Fake processor in MVP
-
-The processor is fake by design.
-
-The goal is to prove workflow orchestration, not OCR/PDF parsing.
-
-### 3. Manual processing trigger
-
-Processing is triggered through an API endpoint.
-
-Background processing is abstracted through `IBackgroundJobClient`, but no real queue is used in the first version.
-
-### 4. Local file storage
-
-Files are stored locally behind `IFileStorage`.
-
-This keeps the project simple while preserving a clean replacement point for S3, MinIO or Azure Blob Storage later.
-
-### 5. Demo authentication
-
-JWT auth is implemented, but user management is intentionally simplified.
-
-The project should not be presented as production authentication.
-
-## Explicit non-goals
-
-The current version intentionally does not include:
-
-- microservices;
-- Kafka;
-- RabbitMQ;
-- Outbox;
-- distributed transactions;
-- event sourcing;
-- real OCR;
-- production identity server;
-- antivirus scanning;
-- cloud object storage;
-- frontend.
-
-## Final architecture summary
-
-DocFlow Processing System demonstrates:
-
-```text
-Clean Architecture + DDD-lite aggregate + document lifecycle + upload/download + failure handling + retry + cancel + history + JWT-protected API + EF Core/PostgreSQL + Docker + CI-tested integration tests.
-```
-
-The strongest architectural point is that document state is not just stored. It is controlled by explicit domain transitions and explained through history.
+DocFlow demonstrates Clean Architecture, DDD-lite aggregate modeling, explicit document lifecycle, upload validation, file download, failure handling, retry, cancel, history, JWT-protected API, EF Core/PostgreSQL and CI-tested integration tests.
