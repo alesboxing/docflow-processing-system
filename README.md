@@ -1,8 +1,8 @@
 # DocFlow Processing System
 
-.NET 9 Clean Architecture backend for document upload, processing, status tracking, retry, history, JWT authentication, PostgreSQL persistence, Docker Compose and integration tests.
+.NET 9 Clean Architecture backend for document upload, processing, status tracking, failure handling, retry, cancellation, download, JWT authentication, PostgreSQL persistence, Docker Compose and CI-tested integration tests.
 
-The project is built as a portfolio backend system, not as a simple CRUD API.
+The project is built as a backend portfolio system, not as a simple CRUD API.
 
 ## Main idea
 
@@ -10,7 +10,7 @@ The central question of the system is:
 
 > What is happening with this document now, why is it in this status, and what should be done next?
 
-DocFlow models a document as a small workflow with explicit lifecycle transitions, protected mutation points, failure handling and audit-style history.
+DocFlow models a document as a workflow with explicit lifecycle transitions, protected mutation points, failure handling, retry logic and audit-style history.
 
 ## Current status
 
@@ -19,13 +19,14 @@ Implemented and covered by CI:
 - document upload through `multipart/form-data`;
 - file validation;
 - local file storage abstraction;
+- original file download;
 - PostgreSQL persistence through EF Core;
 - document status lifecycle;
 - processing success flow;
 - processing failure flow;
 - retry workflow;
+- cancel workflow;
 - document history endpoint;
-- document download endpoint;
 - JWT authentication;
 - role-based protected document endpoints;
 - Docker Compose setup;
@@ -35,8 +36,8 @@ Implemented and covered by CI:
 Current CI result:
 
 ```text
-Total tests: 10
-Passed: 10
+Total tests: 12
+Passed: 12
 Build succeeded
 0 warnings
 0 errors
@@ -78,7 +79,7 @@ DocFlow.Infrastructure -> DocFlow.Application / DocFlow.Domain
 DocFlow.Domain -> no project dependency
 ```
 
-The domain layer does not know about EF Core, HTTP, controllers, DTOs, file system storage or authentication.
+The domain layer does not know about EF Core, HTTP, controllers, DTOs, file system storage, JWT or Docker.
 
 ## Document lifecycle
 
@@ -91,7 +92,7 @@ Uploaded -> Queued -> Processing -> Processed
 Failure workflow:
 
 ```text
-Queued -> Processing -> Failed
+Uploaded -> Queued -> Processing -> Failed
 ```
 
 Retry workflow:
@@ -120,7 +121,17 @@ Initial status:
 Uploaded
 ```
 
-### 2. Process document successfully
+### 2. Download document
+
+The uploaded file can be downloaded back through the API.
+
+This proves the full file cycle:
+
+```text
+upload -> store -> download
+```
+
+### 3. Process document successfully
 
 A document can be processed explicitly through the API.
 
@@ -132,7 +143,7 @@ Uploaded -> Queued -> Processing -> Processed
 
 Processing stores extracted metadata such as title, text preview, page count and processing timestamp.
 
-### 3. Capture processing failure
+### 4. Capture processing failure
 
 If the document processor throws an exception, the application service does not allow the exception to escape as an untracked workflow state.
 
@@ -144,7 +155,7 @@ Failed
 
 The failure reason is persisted and the failure transition is added to document history.
 
-### 4. Retry failed document
+### 5. Retry failed document
 
 A failed document can be retried through the API.
 
@@ -155,7 +166,19 @@ The retry operation:
 - moves the document back to `Queued`;
 - records the retry reason in document history.
 
-### 5. Inspect document history
+### 6. Cancel uploaded document
+
+An uploaded document can be cancelled through the API.
+
+The tested cancel transition is:
+
+```text
+Uploaded -> Cancelled
+```
+
+The cancellation reason is stored in document history.
+
+### 7. Inspect document history
 
 The API exposes document history so the user can understand why the document is in the current status.
 
@@ -168,6 +191,7 @@ Processing
 Processed
 Failed
 Queued
+Cancelled
 ```
 
 ## API endpoints
@@ -261,7 +285,9 @@ Current tested scenarios:
 - process document and mark it as processed;
 - get document history after processing;
 - mark document as failed when processor throws;
-- retry failed document and move it back to queued.
+- retry failed document and move it back to queued;
+- cancel uploaded document;
+- download uploaded file and verify original content.
 
 Run tests:
 
@@ -279,9 +305,9 @@ DocFlow Processing System demonstrates:
 - DDD-lite aggregate modeling;
 - explicit state transitions;
 - protected mutation points;
-- stored state vs derived workflow data;
+- stored state vs workflow history;
 - error handling without leaking infrastructure details into controllers;
-- file upload and storage abstraction;
+- file upload, storage and download;
 - EF Core persistence;
 - JWT authentication and role-based authorization;
 - integration testing through WebApplicationFactory;
