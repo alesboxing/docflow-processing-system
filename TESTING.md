@@ -13,8 +13,8 @@ The tests are focused on document workflow behavior, not only on controller stat
 Current GitHub Actions result:
 
 ```text
-Total tests: 10
-Passed: 10
+Total tests: 12
+Passed: 12
 Build succeeded
 0 warnings
 0 errors
@@ -103,12 +103,13 @@ Why this matters:
 | `Me_ShouldReturn200_WhenAuthenticated` | Authenticated user endpoint works with token |
 | `Documents_ShouldReturn401_WhenNoToken` | Document endpoints require authentication |
 
-### Upload and read
+### Upload, read and download
 
 | Test | What it proves |
 |---|---|
 | `Upload_ShouldReturn201_WhenTxtFileValid` | Valid `.txt` upload works through multipart form data |
 | `GetById_ShouldReturn200_AfterUpload` | Uploaded document can be fetched by id |
+| `Download_ShouldReturnOriginalFile_WhenDocumentExists` | Uploaded file can be downloaded and content matches the original file |
 
 ### Processing success
 
@@ -122,6 +123,12 @@ Why this matters:
 | Test | What it proves |
 |---|---|
 | `ProcessingFailure_ShouldMarkDocumentFailed_AndRetryShouldQueueAgain` | Processor exception becomes workflow failure, then retry returns document to `Queued` |
+
+### Cancel
+
+| Test | What it proves |
+|---|---|
+| `Cancel_ShouldReturn200_WhenDocumentUploaded` | Uploaded document can be cancelled and the reason is stored in history |
 
 ## What the API tests actually verify
 
@@ -137,6 +144,7 @@ HTTP request
 -> application service
 -> domain aggregate
 -> EF Core persistence
+-> file storage where needed
 -> HTTP response
 ```
 
@@ -172,6 +180,37 @@ The test verifies:
 - `retryCount` becomes `1`;
 - `failureReason` is cleared;
 - history contains the failure and retry records.
+
+## Cancel test design
+
+The cancel test verifies:
+
+```text
+Uploaded -> Cancelled
+```
+
+It proves:
+
+- uploaded documents can be cancelled;
+- the status changes to `Cancelled`;
+- history contains `Uploaded` and `Cancelled`;
+- the cancellation reason is persisted in history.
+
+## Download test design
+
+The download test verifies the full file cycle:
+
+```text
+upload -> store -> download
+```
+
+It proves:
+
+- uploaded file is saved;
+- `/download` returns `200 OK`;
+- response content type is `text/plain`;
+- downloaded content equals the original uploaded text;
+- `Content-Disposition` contains the original file name.
 
 ## Why processing failure returns 200 in the current demo
 
@@ -243,9 +282,9 @@ The current tests do not yet cover:
 - real OCR/PDF parsing;
 - large file upload rejection;
 - unsupported file extension rejection;
-- cancel endpoint scenarios;
-- download endpoint binary response;
 - paging and filtering edge cases;
+- retry conflict when document is not failed;
+- process not found case;
 - authorization role matrix beyond basic authenticated/unauthenticated checks.
 
 These are good next improvements, but they are not required to prove the current portfolio-level workflow.
@@ -254,11 +293,12 @@ These are good next improvements, but they are not required to prove the current
 
 Priority order:
 
-1. `Cancel_ShouldReturn200_WhenDocumentUploaded`
-2. `Download_ShouldReturnOriginalFile_WhenDocumentExists`
-3. `Upload_ShouldReturn400_WhenExtensionUnsupported`
-4. `GetDocuments_ShouldReturnPagedList`
-5. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
-6. `Process_ShouldReturn404_WhenDocumentNotFound`
+1. `Upload_ShouldReturn400_WhenExtensionUnsupported`
+2. `GetDocuments_ShouldReturnPagedList`
+3. `Retry_ShouldReturn409_WhenDocumentIsNotFailed`
+4. `Process_ShouldReturn404_WhenDocumentNotFound`
+5. `Upload_ShouldReturn400_WhenFileMissing`
+6. `Upload_ShouldReturn400_WhenFileTooLarge`
+7. `Download_ShouldReturn404_WhenDocumentNotFound`
 
 This order improves coverage without adding unnecessary architecture complexity.
