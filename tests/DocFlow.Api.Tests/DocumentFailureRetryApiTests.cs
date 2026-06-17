@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DocFlow.Application.Abstractions;
 using DocFlow.Application.Documents;
+using DocFlow.Domain.Documents;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
