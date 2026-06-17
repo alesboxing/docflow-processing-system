@@ -2,63 +2,39 @@
 
 ## Purpose
 
-This API is designed to answer the main workflow question:
+The API exposes a document workflow, not a CRUD wrapper.
+
+Main question:
 
 > What is happening with this document now, why is it in this status, and what should be done next?
 
-The API is not a simple CRUD wrapper. Most document endpoints represent lifecycle actions: upload, download, process, fail, retry, cancel and inspect history.
-
 ## Base URL
-
-Docker/local demo target:
 
 ```text
 http://localhost:5000
 ```
 
-Swagger UI in Development:
+Swagger in Development:
 
 ```text
 http://localhost:5000/swagger
 ```
 
-## Authentication model
+## Authentication
 
-The API uses JWT Bearer authentication.
+Document endpoints require JWT Bearer authentication and the `Operator` or `Admin` role.
 
-Document endpoints require the `DocumentUser` policy.
+Demo users:
 
-Allowed roles:
-
-```text
-Operator
-Admin
-```
-
-Use the token in protected requests:
-
-```http
-Authorization: Bearer <accessToken>
-```
-
-## Demo users
-
-The current project uses demo authentication.
-
-| User name | Password | Role |
+| User | Password | Role |
 |---|---|---|
 | `operator` | `Operator123!` | `Operator` |
 | `admin` | `Admin123!` | `Admin` |
 
-This is suitable for a portfolio demo, not for production identity management.
-
-## Auth endpoints
-
-### Login
+Login:
 
 ```http
 POST /api/auth/login
-Content-Type: application/json
 ```
 
 Request:
@@ -70,39 +46,13 @@ Request:
 }
 ```
 
-Successful response: `200 OK`
-
-```json
-{
-  "accessToken": "jwt-token",
-  "tokenType": "Bearer",
-  "expiresAtUtc": "2026-06-17T12:00:00Z",
-  "userName": "operator",
-  "role": "Operator"
-}
-```
-
-Invalid credentials response: `401 Unauthorized`
-
-### Current user
+Use the returned token:
 
 ```http
-GET /api/auth/me
 Authorization: Bearer <accessToken>
 ```
 
-Successful response: `200 OK`
-
-```json
-{
-  "userName": "operator",
-  "role": "Operator"
-}
-```
-
-## Document status lifecycle
-
-Current statuses:
+## Document statuses
 
 ```text
 Uploaded
@@ -113,76 +63,45 @@ Failed
 Cancelled
 ```
 
-Main success flow:
+Main flows:
 
 ```text
 Uploaded -> Queued -> Processing -> Processed
-```
-
-Failure and retry flow:
-
-```text
 Uploaded -> Queued -> Processing -> Failed -> Queued
+Uploaded -> Cancelled
 ```
 
-Cancel flow:
+## Endpoints
 
 ```text
-Uploaded -> Cancelled
-Queued -> Cancelled
-Failed -> Cancelled
+POST   /api/auth/login
+GET    /api/auth/me
+POST   /api/documents
+GET    /api/documents
+GET    /api/documents/{documentId}
+GET    /api/documents/{documentId}/download
+POST   /api/documents/{documentId}/process
+POST   /api/documents/{documentId}/retry
+POST   /api/documents/{documentId}/cancel
+GET    /api/documents/{documentId}/history
+GET    /health
 ```
 
-Important rule: status changes are controlled by the domain model, not by the controller.
-
-## Document response shape
-
-Most document endpoints return a `DocumentResponse`:
-
-```json
-{
-  "id": "c8f2cf9c-a772-4df6-8f74-77f62472805c",
-  "originalFileName": "example.txt",
-  "storedFileName": "stored-file-name.txt",
-  "contentType": "text/plain",
-  "sizeBytes": 128,
-  "checksum": "sha256-checksum",
-  "status": "Processed",
-  "uploadedAtUtc": "2026-06-17T08:59:26Z",
-  "processedAtUtc": "2026-06-17T08:59:26Z",
-  "failedAtUtc": null,
-  "failureReason": null,
-  "retryCount": 0,
-  "maxRetryCount": 3,
-  "extractedTitle": "example.txt",
-  "extractedTextPreview": "Extracted text preview...",
-  "pageCount": 1,
-  "metadataJson": "{}"
-}
-```
-
-## Document endpoints
-
-All endpoints below require:
-
-```http
-Authorization: Bearer <accessToken>
-```
-
-### Upload document
+## Upload document
 
 ```http
 POST /api/documents
 Content-Type: multipart/form-data
+Authorization: Bearer <accessToken>
 ```
 
-Form file field:
+Form field:
 
 ```text
 file
 ```
 
-Supported extensions:
+Allowed extensions:
 
 ```text
 .pdf
@@ -190,14 +109,12 @@ Supported extensions:
 .txt
 ```
 
-Supported content types:
+Allowed content types:
 
 ```text
 application/pdf
 text/plain
 ```
-
-Special note: `.docx` is allowed by extension even when the content type is not included in the strict content-type allowlist.
 
 Max file size:
 
@@ -205,117 +122,63 @@ Max file size:
 10 MB
 ```
 
-Successful response: `201 Created`
+Success:
 
-The response contains the full `DocumentResponse` shape.
-
-### Get paged documents
-
-```http
-GET /api/documents?page=1&pageSize=20
+```text
+201 Created
 ```
 
-Optional status filter:
+Unsupported extension:
 
-```http
-GET /api/documents?status=Processed&page=1&pageSize=20
+```text
+400 BadRequest
+File.UnsupportedExtension
 ```
 
-Successful response: `200 OK`
+CI-proven example:
 
-```json
-{
-  "items": [],
-  "page": 1,
-  "pageSize": 20,
-  "totalCount": 0,
-  "totalPages": 0
-}
+```text
+virus.exe -> 400 BadRequest -> File.UnsupportedExtension
 ```
 
-### Get document by id
-
-```http
-GET /api/documents/{documentId}
-```
-
-Successful response: `200 OK`
-
-Returns `DocumentResponse`.
-
-Not found response: `404 Not Found`
-
-### Download document
+## Download document
 
 ```http
 GET /api/documents/{documentId}/download
+Authorization: Bearer <accessToken>
 ```
 
-Successful response: `200 OK`
-
-Returns the original uploaded file as binary content.
-
-The response uses:
+Success:
 
 ```text
-Content-Type: original document content type
+200 OK
+Content-Type: original content type
 Content-Disposition: attachment; filename=<originalFileName>
 ```
 
-The download endpoint is covered by CI. The test verifies that the downloaded file content matches the original uploaded text file.
+The CI test verifies that downloaded `.txt` content equals the original uploaded content.
 
-### Process document
+## Process document
 
 ```http
 POST /api/documents/{documentId}/process
+Authorization: Bearer <accessToken>
 ```
 
-Successful response: `200 OK`
-
-Returns `DocumentResponse`.
-
-Expected successful lifecycle inside the use case:
+Success flow:
 
 ```text
-Queued -> Processing -> Processed
+Uploaded -> Queued -> Processing -> Processed
 ```
 
-Current API-level behavior:
+If the processor throws, the current demo returns `200 OK` with document status `Failed`. The failure is a workflow result, not an unhandled server crash.
 
-- the endpoint accepts an uploaded document id;
-- the application service starts processing through the domain model;
-- the fake processor extracts demo metadata;
-- the document becomes `Processed`;
-- history receives processing transition records.
-
-### Processing failure behavior
-
-The same endpoint can also produce a failed document state if the document processor throws an exception.
-
-Expected lifecycle:
-
-```text
-Queued -> Processing -> Failed
-```
-
-The API response still returns `200 OK` with the document in `Failed` status because the workflow failure is a business result, not an unhandled server crash.
-
-Example failed response fragment:
-
-```json
-{
-  "status": "Failed",
-  "failedAtUtc": "2026-06-17T08:59:26Z",
-  "failureReason": "Processing failed in test processor.",
-  "retryCount": 0
-}
-```
-
-### Retry document
+## Retry document
 
 ```http
 POST /api/documents/{documentId}/retry
 Content-Type: application/json
+Authorization: Bearer <accessToken>
 ```
 
 Request:
@@ -326,32 +189,20 @@ Request:
 }
 ```
 
-Allowed only when the document is `Failed`.
+Allowed only from `Failed`.
 
-Successful response: `200 OK`
-
-Expected lifecycle:
+Flow:
 
 ```text
 Failed -> Queued
 ```
 
-Response fragment:
-
-```json
-{
-  "status": "Queued",
-  "failedAtUtc": null,
-  "failureReason": null,
-  "retryCount": 1
-}
-```
-
-### Cancel document
+## Cancel document
 
 ```http
 POST /api/documents/{documentId}/cancel
 Content-Type: application/json
+Authorization: Bearer <accessToken>
 ```
 
 Request:
@@ -362,7 +213,7 @@ Request:
 }
 ```
 
-Allowed statuses:
+Allowed from:
 
 ```text
 Uploaded
@@ -370,62 +221,16 @@ Queued
 Failed
 ```
 
-Successful response: `200 OK`
-
-Returns `DocumentResponse` with `status = "Cancelled"`.
-
-The uploaded-document cancel flow is covered by CI.
-
-### Get document history
+## History
 
 ```http
 GET /api/documents/{documentId}/history
+Authorization: Bearer <accessToken>
 ```
 
-Successful response: `200 OK`
-
-```json
-[
-  {
-    "id": "history-id",
-    "documentId": "document-id",
-    "fromStatus": null,
-    "toStatus": "Uploaded",
-    "action": "Document uploaded",
-    "reason": null,
-    "createdAtUtc": "2026-06-17T08:59:26Z"
-  },
-  {
-    "id": "history-id",
-    "documentId": "document-id",
-    "fromStatus": "Processing",
-    "toStatus": "Processed",
-    "action": "Document processed successfully",
-    "reason": null,
-    "createdAtUtc": "2026-06-17T08:59:26Z"
-  }
-]
-```
-
-The history endpoint is the main endpoint for explaining why the document is in its current state.
-
-## Health check
-
-```http
-GET /health
-```
-
-Successful response: `200 OK`
-
-```text
-Healthy
-```
-
-The current implementation exposes only `/health`.
+History explains the document status through transition records.
 
 ## Error response
-
-Business errors use `ErrorResponse`:
 
 ```json
 {
@@ -435,136 +240,28 @@ Business errors use `ErrorResponse`:
 }
 ```
 
-Current error response shape:
-
-```text
-code
-message
-type
-```
-
-The current implementation does not add `traceId` or `correlationId` to the `ErrorResponse` contract.
-
-## Common status codes
-
-| Status | Meaning |
-|---|---|
-| 200 | Request succeeded |
-| 201 | Document uploaded |
-| 400 | Validation or invalid request |
-| 401 | Authentication required or invalid credentials |
-| 403 | Authenticated user does not satisfy policy/role |
-| 404 | Resource not found |
-| 409 | Business conflict / invalid state transition |
-| 413 | Request body too large |
-| 500 | Unexpected server error |
-
 ## CI-proven scenarios
 
-The current API test suite proves these scenarios in GitHub Actions:
-
 ```text
-Total tests: 12
-Passed: 12
+Total tests: 13
+Passed: 13
 ```
 
-Covered API scenarios:
+Covered scenarios:
 
-- health endpoint returns OK;
-- login succeeds with valid demo credentials;
-- login fails with invalid credentials;
-- `/api/auth/me` works with token;
-- document endpoint without token returns 401;
-- `.txt` upload returns 201;
-- uploaded document can be fetched by id;
-- uploaded document can be downloaded with original content;
-- document can be processed successfully;
-- processing history contains transitions;
-- processing failure marks document as Failed;
-- retry after failure queues the document again;
-- uploaded document can be cancelled with history reason.
+- health endpoint;
+- login success and failure;
+- `/api/auth/me`;
+- unauthorized document access returns 401;
+- valid upload;
+- unsupported extension rejection;
+- get by id;
+- download original file;
+- process successfully;
+- history after processing;
+- processing failure and retry;
+- cancel uploaded document.
 
-## Minimal manual demo sequence
+## Limitations
 
-### 1. Login
-
-```http
-POST /api/auth/login
-```
-
-```json
-{
-  "userName": "operator",
-  "password": "Operator123!"
-}
-```
-
-Copy `accessToken` from the response.
-
-### 2. Upload document
-
-```http
-POST /api/documents
-Authorization: Bearer <accessToken>
-Content-Type: multipart/form-data
-```
-
-Attach a file using form field:
-
-```text
-file
-```
-
-Copy `id` from the response.
-
-### 3. Download document
-
-```http
-GET /api/documents/{documentId}/download
-Authorization: Bearer <accessToken>
-```
-
-Expected result:
-
-```text
-The original uploaded file is returned.
-```
-
-### 4. Process document
-
-```http
-POST /api/documents/{documentId}/process
-Authorization: Bearer <accessToken>
-```
-
-Expected result:
-
-```text
-status = Processed
-```
-
-### 5. Check history
-
-```http
-GET /api/documents/{documentId}/history
-Authorization: Bearer <accessToken>
-```
-
-Expected result:
-
-```text
-Uploaded -> Queued -> Processing -> Processed
-```
-
-## Current limitations
-
-The current API intentionally does not provide:
-
-- production user management;
-- refresh tokens;
-- real OCR;
-- async queue execution;
-- S3/MinIO/Azure Blob storage;
-- antivirus scanning;
-- frontend UI;
-- public anonymous document access.
+The API intentionally does not include production identity management, refresh tokens, real OCR, async queue execution, object storage, antivirus scanning or frontend UI.
