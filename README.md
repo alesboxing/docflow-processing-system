@@ -18,6 +18,7 @@ Implemented and covered by CI:
 
 - document upload through `multipart/form-data`;
 - file validation;
+- unsupported file extension rejection;
 - local file storage abstraction;
 - original file download;
 - PostgreSQL persistence through EF Core;
@@ -36,8 +37,8 @@ Implemented and covered by CI:
 Current CI result:
 
 ```text
-Total tests: 12
-Passed: 12
+Total tests: 13
+Passed: 13
 Build succeeded
 0 warnings
 0 errors
@@ -121,7 +122,17 @@ Initial status:
 Uploaded
 ```
 
-### 2. Download document
+### 2. Reject unsupported file extension
+
+The API rejects files with unsupported extensions.
+
+Tested rejection example:
+
+```text
+virus.exe -> 400 BadRequest -> File.UnsupportedExtension
+```
+
+### 3. Download document
 
 The uploaded file can be downloaded back through the API.
 
@@ -131,7 +142,7 @@ This proves the full file cycle:
 upload -> store -> download
 ```
 
-### 3. Process document successfully
+### 4. Process document successfully
 
 A document can be processed explicitly through the API.
 
@@ -143,7 +154,7 @@ Uploaded -> Queued -> Processing -> Processed
 
 Processing stores extracted metadata such as title, text preview, page count and processing timestamp.
 
-### 4. Capture processing failure
+### 5. Capture processing failure
 
 If the document processor throws an exception, the application service does not allow the exception to escape as an untracked workflow state.
 
@@ -155,7 +166,7 @@ Failed
 
 The failure reason is persisted and the failure transition is added to document history.
 
-### 5. Retry failed document
+### 6. Retry failed document
 
 A failed document can be retried through the API.
 
@@ -166,7 +177,7 @@ The retry operation:
 - moves the document back to `Queued`;
 - records the retry reason in document history.
 
-### 6. Cancel uploaded document
+### 7. Cancel uploaded document
 
 An uploaded document can be cancelled through the API.
 
@@ -178,7 +189,7 @@ Uploaded -> Cancelled
 
 The cancellation reason is stored in document history.
 
-### 7. Inspect document history
+### 8. Inspect document history
 
 The API exposes document history so the user can understand why the document is in the current status.
 
@@ -281,6 +292,7 @@ Current tested scenarios:
 - protected document endpoint without token;
 - `/api/auth/me` with token;
 - document upload;
+- unsupported file extension rejection;
 - get uploaded document by id;
 - process document and mark it as processed;
 - get document history after processing;
@@ -307,7 +319,7 @@ DocFlow Processing System demonstrates:
 - protected mutation points;
 - stored state vs workflow history;
 - error handling without leaking infrastructure details into controllers;
-- file upload, storage and download;
+- file upload, validation, storage and download;
 - EF Core persistence;
 - JWT authentication and role-based authorization;
 - integration testing through WebApplicationFactory;
