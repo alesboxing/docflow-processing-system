@@ -12,7 +12,7 @@ why is it in this status,
 and what should be done next?
 ```
 
-The project now has a working vertical slice: upload, validation, persistence, processing, failure handling, retry, cancellation, download, history, protected API endpoints, Docker setup and CI-tested integration tests.
+The project now has a working vertical slice: upload, validation, unsupported extension rejection, persistence, processing, failure handling, retry, cancellation, download, history, protected API endpoints, Docker setup and CI-tested integration tests.
 
 ## Current score
 
@@ -20,7 +20,7 @@ The project now has a working vertical slice: upload, validation, persistence, p
 8.6 / 10
 ```
 
-This is a strong portfolio-level backend project. It is not production-complete, but it is significantly stronger than a typical CRUD demo because the core value is in lifecycle rules, state transitions, failure handling, file handling and integration testing.
+This is a strong portfolio-level backend project. It is not production-complete, but it is significantly stronger than a typical CRUD demo because the core value is in lifecycle rules, state transitions, validation, failure handling, file handling and integration testing.
 
 ## Evidence of completion
 
@@ -28,8 +28,8 @@ Current CI status:
 
 ```text
 Build succeeded
-Total tests: 12
-Passed: 12
+Total tests: 13
+Passed: 13
 0 warnings
 0 errors
 ```
@@ -44,6 +44,7 @@ Covered by tests:
 - protected endpoint without token;
 - authenticated `/api/auth/me`;
 - document upload;
+- unsupported file extension rejection;
 - get uploaded document by id;
 - process uploaded document;
 - history after processing;
@@ -82,7 +83,19 @@ Uploaded / Queued / Failed -> Cancelled
 
 This gives the project a clear business story.
 
-### 3. File lifecycle is now covered
+### 3. Upload validation is tested
+
+The API rejects unsupported file extensions before they enter the document workflow.
+
+Tested rejection:
+
+```text
+virus.exe -> 400 BadRequest -> File.UnsupportedExtension
+```
+
+This shows that the upload endpoint is not just a happy-path file receiver.
+
+### 4. File lifecycle is covered
 
 The API does not only accept upload. It also proves that the uploaded file can be returned through download.
 
@@ -94,7 +107,7 @@ upload -> store -> download
 
 This makes the backend demo more complete.
 
-### 4. Application services coordinate use cases
+### 5. Application services coordinate use cases
 
 The application layer coordinates:
 
@@ -108,7 +121,7 @@ The application layer coordinates:
 
 Controllers remain thin and do not contain business rules.
 
-### 5. Persistence is separated from domain
+### 6. Persistence is separated from domain
 
 The domain does not depend on EF Core.
 
@@ -122,13 +135,13 @@ Infrastructure owns:
 - checksum service;
 - fake document processor.
 
-### 6. Authentication and authorization are present
+### 7. Authentication and authorization are present
 
 The API uses JWT Bearer authentication and role-based access through `Operator` and `Admin` roles.
 
 This makes the project more realistic than an open anonymous CRUD API.
 
-### 7. Integration tests prove the main workflow
+### 8. Integration tests prove the main workflow
 
 The API is tested through `WebApplicationFactory`, not only through isolated unit tests.
 
@@ -140,10 +153,11 @@ This validates:
 - controllers;
 - application services;
 - EF Core persistence;
+- file validation;
 - file storage behavior;
 - document processing flow.
 
-### 8. CI is active
+### 9. CI is active
 
 GitHub Actions runs restore, build and test on push and pull request.
 
@@ -219,8 +233,8 @@ It should be presented as:
 ```text
 A focused backend workflow demo that shows Clean Architecture,
 DDD-lite aggregate modeling, document lifecycle rules,
-file upload/download, failure handling, retry logic,
-persistence and integration testing.
+file validation, file upload/download, failure handling,
+retry logic, persistence and integration testing.
 ```
 
 ## Interview positioning
@@ -230,15 +244,17 @@ Use this explanation:
 ```text
 DocFlow Processing System is a .NET 9 Clean Architecture backend for a document processing workflow.
 It is not just CRUD: the main goal is to show how a document moves through explicit states,
-how failures are captured, how retry works, how cancellation is tracked, and how every important transition is visible through history.
+how invalid files are rejected, how failures are captured, how retry works,
+how cancellation is tracked, and how every important transition is visible through history.
 ```
 
 A concise version:
 
 ```text
 I built a backend workflow system where the main aggregate is Document.
-The system supports upload, download, validation, processing, failure handling, retry,
-cancellation, history, JWT-protected endpoints, PostgreSQL persistence and integration tests.
+The system supports upload, validation, unsupported extension rejection, download,
+processing, failure handling, retry, cancellation, history,
+JWT-protected endpoints, PostgreSQL persistence and integration tests.
 ```
 
 ## What this project proves
@@ -252,6 +268,7 @@ The project proves that the developer understands:
 - thin controllers;
 - application service orchestration;
 - infrastructure separation;
+- file upload validation;
 - file upload/storage/download workflow;
 - API integration testing;
 - CI-based verification;
@@ -266,6 +283,7 @@ The project proves that the developer understands:
 [x] API integration tests pass
 [x] GitHub Actions CI passes
 [x] Upload works
+[x] Unsupported extension is rejected
 [x] Download returns original file
 [x] Process works
 [x] Failure is captured in document status
@@ -285,10 +303,10 @@ The project proves that the developer understands:
 
 These are not required for the current portfolio version, but they would improve the project further:
 
-1. Add unsupported extension integration test.
-2. Add paged list integration test.
-3. Add retry conflict integration test.
-4. Add not-found integration tests for process/download.
+1. Add paged list integration test.
+2. Add retry conflict integration test.
+3. Add not-found integration tests for process/download.
+4. Add missing file upload test.
 5. Add Swagger JWT authorization configuration.
 6. Add PostgreSQL Testcontainers integration test.
 7. Add structured logging for processing failures.
@@ -302,7 +320,7 @@ DocFlow Processing System is ready to be shown as a portfolio backend project.
 It is strongest when positioned around workflow modeling:
 
 ```text
-Document lifecycle + upload/download + failure handling + retry + cancel + history + protected API + persistence + integration tests.
+Document lifecycle + upload validation + upload/download + failure handling + retry + cancel + history + protected API + persistence + integration tests.
 ```
 
 That combination is enough to distinguish the project from ordinary CRUD demos.
