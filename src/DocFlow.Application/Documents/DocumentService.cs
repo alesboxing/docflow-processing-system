@@ -45,7 +45,7 @@ public sealed class DocumentService : IDocumentService
         var checksum = await _checksumService.CalculateSha256Async(storedStream, ct);
         var now = _dateTimeProvider.UtcNow;
 
-        var createResult = Document.Create(command.OriginalFileName, storedFileInfo.StoredFileName, command.ContentType, storedFileInfo.SizeBytes, checksum, now);
+        var createResult = Document.Create(command.OriginalFileName, storedFileInfo.StoredFileName, command.ContentType, command.SizeBytes, checksum, now);
         if (createResult.IsFailure) return Result<DocumentResponse>.Failure(createResult.Error!);
 
         var document = createResult.Value;
