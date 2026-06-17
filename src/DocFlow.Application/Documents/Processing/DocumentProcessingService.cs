@@ -31,10 +31,22 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
         var start = document.StartProcessing(_clock.UtcNow);
         if (start.IsFailure) return Result<DocumentResponse>.Failure(start.Error!);
 
-        await using var stream = await _storage.OpenReadAsync(document.StoredFileName, ct);
-        var result = await _processor.ProcessAsync(stream, document.OriginalFileName, document.ContentType, ct);
-        var processed = document.MarkProcessed(result, _clock.UtcNow);
-        if (processed.IsFailure) return Result<DocumentResponse>.Failure(processed.Error!);
+        try
+        {
+            await using var stream = await _storage.OpenReadAsync(document.StoredFileName, ct);
+            var result = await _processor.ProcessAsync(stream, document.OriginalFileName, document.ContentType, ct);
+            var processed = document.MarkProcessed(result, _clock.UtcNow);
+            if (processed.IsFailure) return Result<DocumentResponse>.Failure(processed.Error!);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            var failed = document.MarkFailed(BuildFailureReason(exception), _clock.UtcNow);
+            if (failed.IsFailure) return Result<DocumentResponse>.Failure(failed.Error!);
+        }
 
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<DocumentResponse>.Success(DocumentMapper.ToResponse(document));
@@ -44,6 +56,8 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
     {
         var document = await _documents.GetByIdAsync(documentId, ct);
         if (document is null) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
+        if (string.IsNullOrWhiteSpace(command.Reason)) return Result<DocumentResponse>.Failure(DocFlow.Application.ApplicationErrors.RetryReasonRequired);
+
         var retry = document.Retry(command.Reason, _clock.UtcNow);
         if (retry.IsFailure) return Result<DocumentResponse>.Failure(retry.Error!);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -67,5 +81,14 @@ public sealed class DocumentProcessingService : IDocumentProcessingService
         if (document is null) return Result<IReadOnlyList<DocumentHistoryResponse>>.Failure(DocFlow.Application.ApplicationErrors.DocumentNotFound);
         var history = document.History.OrderBy(x => x.CreatedAtUtc).Select(DocumentMapper.ToHistoryResponse).ToList();
         return Result<IReadOnlyList<DocumentHistoryResponse>>.Success(history);
+    }
+
+    private static string BuildFailureReason(Exception exception)
+    {
+        var message = string.IsNullOrWhiteSpace(exception.Message)
+            ? "Unknown processing error."
+            : exception.Message.Trim();
+
+        return message.Length <= 1000 ? message : message[..1000];
     }
 }
