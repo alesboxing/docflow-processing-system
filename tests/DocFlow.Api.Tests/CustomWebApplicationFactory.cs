@@ -10,6 +10,8 @@ namespace DocFlow.Api.Tests;
 
 public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly string _databaseName = $"docflow-api-tests-{Guid.NewGuid():N}";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -21,7 +23,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             services.AddDbContext<AppDbContext>(options =>
             {
-                options.UseInMemoryDatabase($"docflow-api-tests-{Guid.NewGuid():N}");
+                options.UseInMemoryDatabase(_databaseName);
             });
         });
     }
